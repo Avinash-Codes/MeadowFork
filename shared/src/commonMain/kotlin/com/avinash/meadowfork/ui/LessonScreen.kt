@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -38,10 +39,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.avinash.meadowfork.experiment.Branch
 import com.avinash.meadowfork.experiment.BranchTotals
+import com.avinash.meadowfork.experiment.DifferenceSummary
 import com.avinash.meadowfork.experiment.ForkRun
+import com.avinash.meadowfork.experiment.REPEAT_SEEDS
 import com.avinash.meadowfork.simulation.MeadowRules
 import com.avinash.meadowfork.simulation.WorldState
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private val Branch.label: String
@@ -106,10 +110,15 @@ fun LessonScreen() {
                 ForkedMeadow(lesson, run)
                 Charts(lesson, run)
                 if (lesson.reachedEnd) {
-                    Summary(lesson, run) {
-                        lesson.showGrassEvidence()
-                        scope.launch { scrollState.animateScrollTo(0) }
-                    }
+                    Summary(
+                        lesson = lesson,
+                        run = run,
+                        onGrassEvidence = {
+                            lesson.showGrassEvidence()
+                            scope.launch { scrollState.animateScrollTo(0) }
+                        },
+                        onRepeat = { lesson.repeatAcrossSeeds(scope) },
+                    )
                 }
             }
             Legend()
@@ -219,7 +228,7 @@ private fun Charts(lesson: LessonState, run: ForkRun) {
 }
 
 @Composable
-private fun Summary(lesson: LessonState, run: ForkRun, onGrassEvidence: () -> Unit) {
+private fun Summary(lesson: LessonState, run: ForkRun, onGrassEvidence: () -> Unit, onRepeat: () -> Unit) {
     val baseline = run.totals(Branch.Baseline)
     val removal = run.totals(Branch.Comparison)
     Card {
@@ -253,6 +262,7 @@ private fun Summary(lesson: LessonState, run: ForkRun, onGrassEvidence: () -> Un
                 Text(if (lesson.showAccounting) "Hide sheep accounting" else "Sheep that starved: show accounting")
             }
             if (lesson.showAccounting) SheepAccounting(baseline, removal, run)
+            RepeatPanel(lesson, run, onRepeat)
             val sheep = lesson.sheepPrediction?.sheepLabel?.lowercase()
             val grass = lesson.grassPrediction?.grassLabel?.lowercase()
             Text("You predicted: sheep $sheep, ready grass $grass.", fontWeight = FontWeight.SemiBold)
@@ -287,6 +297,55 @@ private fun SheepAccounting(baseline: BranchTotals, removal: BranchTotals, run: 
         "How can the wolf-free meadow end with more sheep alive and also record more sheep that starved?",
         fontWeight = FontWeight.SemiBold,
     )
+}
+
+@Composable
+private fun RepeatPanel(lesson: LessonState, run: ForkRun, onRepeat: () -> Unit) {
+    val total = REPEAT_SEEDS.count()
+    val seedRange = "${REPEAT_SEEDS.first}–${REPEAT_SEEDS.last}"
+    val summary = lesson.batchSummary
+    when {
+        lesson.batchRunning -> {
+            Text("Repeating with seeds $seedRange: ${lesson.batchOutcomes.size} of $total done")
+            LinearProgressIndicator(
+                progress = { lesson.batchOutcomes.size / total.toFloat() },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        summary != null -> {
+            Text("Repeated across ${summary.seeds} seeds ($seedRange)", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Each seed grows its own meadow to day ${run.forkDay}, copies it, removes the wolves in the copy " +
+                    "and compares both at day ${run.endDay}. Differences are wolves removed minus with wolves.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            DifferenceLines("Sheep alive", summary.sheep, summary.seeds, "")
+            DifferenceLines("Ready grass", summary.grass, summary.seeds, " tiles")
+            DifferenceLines("Sheep that starved", summary.starved, summary.seeds, "")
+            Text(
+                "These are the observed results for these ${summary.seeds} seeds under these model rules.",
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+        else -> OutlinedButton(onClick = onRepeat, modifier = Modifier.fillMaxWidth()) {
+            Text("Repeat across $total seeds")
+        }
+    }
+}
+
+@Composable
+private fun DifferenceLines(label: String, summary: DifferenceSummary, seeds: Int, unit: String) {
+    Column {
+        Text(label, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+        Text(
+            "Higher in ${summary.higher}, same in ${summary.equal}, lower in ${summary.lower} of $seeds seeds",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            "Median ${signedMedian(summary.median)}$unit, range ${signed(summary.min)} to ${signed(summary.max)}$unit",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }
 
 @Composable
@@ -336,3 +395,9 @@ private fun percentText(tiles: Int): String {
 }
 
 private fun signed(value: Int) = if (value > 0) "+$value" else if (value < 0) "−${-value}" else "0"
+
+private fun signedMedian(value: Double): String {
+    val magnitude = abs(value)
+    val text = if (magnitude % 1.0 == 0.0) "${magnitude.toInt()}" else "$magnitude"
+    return if (value > 0) "+$text" else if (value < 0) "−$text" else "0"
+}
