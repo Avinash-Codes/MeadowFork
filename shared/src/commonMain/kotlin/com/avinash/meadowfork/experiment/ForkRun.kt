@@ -1,6 +1,7 @@
 package com.avinash.meadowfork.experiment
 
 import com.avinash.meadowfork.simulation.MeadowEngine
+import com.avinash.meadowfork.simulation.MeadowRules
 import com.avinash.meadowfork.simulation.Snapshot
 
 enum class Intervention { None, RemoveWolves }
@@ -26,6 +27,11 @@ class ForkRun(val seed: Long, val baseline: List<Snapshot>, val comparison: List
     }
 
     fun snapshot(branch: Branch, day: Int): Snapshot = history(branch)[day - forkDay]
+
+    fun firstDayGrassBelow(branch: Branch, percent: Int): Int? =
+        history(branch).drop(1)
+            .firstOrNull { it.world.readyGrass * 100 < percent * MeadowRules.TILES }
+            ?.world?.day
 
     fun totals(branch: Branch): BranchTotals {
         val history = history(branch)

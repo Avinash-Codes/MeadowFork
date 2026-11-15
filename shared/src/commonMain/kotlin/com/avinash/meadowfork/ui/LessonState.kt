@@ -12,6 +12,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
+const val GRASS_LANDMARK_PERCENT = 25
+
 enum class Trend(val sheepLabel: String, val grassLabel: String) {
     Up("More", "More"),
     Same("About the same", "About the same"),
@@ -37,8 +39,13 @@ class LessonState(
     var playing by mutableStateOf(false)
     var reachedEnd by mutableStateOf(false)
         private set
+    var showAccounting by mutableStateOf(false)
 
     val canFork: Boolean get() = sheepPrediction != null && grassPrediction != null && run == null && !forking
+
+    val revealDay: Int get() = if (reachedEnd) endDay else day
+
+    val grassEvidenceDay: Int? get() = run?.firstDayGrassBelow(Branch.Comparison, GRASS_LANDMARK_PERCENT)
 
     suspend fun fork() {
         forking = true
@@ -63,6 +70,11 @@ class LessonState(
     }
 
     fun skipToResults() = scrub(endDay)
+
+    fun showGrassEvidence() {
+        branch = Branch.Comparison
+        scrub(grassEvidenceDay ?: endDay)
+    }
 
     fun snapshot(branch: Branch): Snapshot = run?.snapshot(branch, day) ?: opening
 

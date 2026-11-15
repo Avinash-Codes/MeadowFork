@@ -37,6 +37,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.avinash.meadowfork.experiment.Branch
+import com.avinash.meadowfork.experiment.BranchTotals
 import com.avinash.meadowfork.experiment.ForkRun
 import com.avinash.meadowfork.simulation.MeadowRules
 import com.avinash.meadowfork.simulation.WorldState
@@ -87,8 +88,9 @@ fun LessonScreen() {
             }
         },
     ) { padding ->
+        val scrollState = rememberScrollState()
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(scrollState).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
@@ -102,7 +104,13 @@ fun LessonScreen() {
                 OpeningMeadow(lesson)
             } else {
                 ForkedMeadow(lesson, run)
-                if (lesson.reachedEnd) Summary(lesson, run)
+                Charts(lesson, run)
+                if (lesson.reachedEnd) {
+                    Summary(lesson, run) {
+                        lesson.showGrassEvidence()
+                        scope.launch { scrollState.animateScrollTo(0) }
+                    }
+                }
             }
             Legend()
         }
@@ -178,7 +186,40 @@ private fun ForkedMeadow(lesson: LessonState, run: ForkRun) {
 }
 
 @Composable
-private fun Summary(lesson: LessonState, run: ForkRun) {
+private fun Charts(lesson: LessonState, run: ForkRun) {
+    val sheep = Branch.entries.associateWith { branch -> run.history(branch).map { it.world.sheep.size } }
+    val grass = Branch.entries.associateWith { branch -> run.history(branch).map { it.world.readyGrass } }
+    val evidenceDay = lesson.grassEvidenceDay
+    ComparisonChart(
+        title = "Sheep alive",
+        series = sheep,
+        firstDay = run.forkDay,
+        selectedDay = lesson.day,
+        revealDay = lesson.revealDay,
+        maxValue = sheep.values.maxOf { it.max() } * 11 / 10,
+        format = { "$it" },
+        branchLabel = { it.label },
+    )
+    val crossing = evidenceDay?.takeIf { it <= lesson.revealDay }
+        ?.let { " ${Branch.Comparison.label} first fell below it on day $it." }
+        .orEmpty()
+    ComparisonChart(
+        title = "Ready grass",
+        series = grass,
+        firstDay = run.forkDay,
+        selectedDay = lesson.day,
+        revealDay = lesson.revealDay,
+        maxValue = MeadowRules.TILES,
+        format = ::percentText,
+        branchLabel = { it.label },
+        landmarkValue = MeadowRules.TILES * GRASS_LANDMARK_PERCENT / 100,
+        markerDay = evidenceDay,
+        footnote = "Dotted line: $GRASS_LANDMARK_PERCENT% ready grass.$crossing",
+    )
+}
+
+@Composable
+private fun Summary(lesson: LessonState, run: ForkRun, onGrassEvidence: () -> Unit) {
     val baseline = run.totals(Branch.Baseline)
     val removal = run.totals(Branch.Comparison)
     Card {
@@ -198,16 +239,54 @@ private fun Summary(lesson: LessonState, run: ForkRun) {
                 "${removal.sheepStarved}",
                 signed(removal.sheepStarved - baseline.sheepStarved),
             )
-            Text("Sheep counted over days ${run.forkDay + 1}–${run.endDay}: start + born − eaten − starved = alive", style = MaterialTheme.typography.labelMedium)
-            Branch.entries.forEach { branch ->
-                val t = run.totals(branch)
-                Text("${branch.label}: ${t.startSheep} + ${t.sheepBorn} − ${t.sheepEaten} − ${t.sheepStarved} = ${t.endSheep}")
+            val evidenceDay = lesson.grassEvidenceDay
+            OutlinedButton(onClick = onGrassEvidence, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    if (evidenceDay != null) {
+                        "Ready grass: show day $evidenceDay, first below $GRASS_LANDMARK_PERCENT%"
+                    } else {
+                        "Ready grass: never below $GRASS_LANDMARK_PERCENT%, show day ${run.endDay}"
+                    },
+                )
             }
+            OutlinedButton(onClick = { lesson.showAccounting = !lesson.showAccounting }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (lesson.showAccounting) "Hide sheep accounting" else "Sheep that starved: show accounting")
+            }
+            if (lesson.showAccounting) SheepAccounting(baseline, removal, run)
             val sheep = lesson.sheepPrediction?.sheepLabel?.lowercase()
             val grass = lesson.grassPrediction?.grassLabel?.lowercase()
             Text("You predicted: sheep $sheep, ready grass $grass.", fontWeight = FontWeight.SemiBold)
         }
     }
+}
+
+@Composable
+private fun SheepAccounting(baseline: BranchTotals, removal: BranchTotals, run: ForkRun) {
+    Text(
+        "Sheep accounting, totals over days ${run.forkDay + 1}–${run.endDay}",
+        style = MaterialTheme.typography.titleSmall,
+    )
+    SummaryRow("", Branch.Baseline.label, Branch.Comparison.label, "Difference", bold = true)
+    listOf<Pair<String, (BranchTotals) -> Int>>(
+        "Start (day ${run.forkDay})" to BranchTotals::startSheep,
+        "+ Born" to BranchTotals::sheepBorn,
+        "− Eaten by wolves" to BranchTotals::sheepEaten,
+        "− Starved" to BranchTotals::sheepStarved,
+        "= Alive (day ${run.endDay})" to BranchTotals::endSheep,
+    ).forEach { (label, value) ->
+        SummaryRow(label, "${value(baseline)}", "${value(removal)}", signed(value(removal) - value(baseline)))
+    }
+    Branch.entries.forEach { branch ->
+        val t = run.totals(branch)
+        Text(
+            "${branch.label}: ${t.startSheep} + ${t.sheepBorn} − ${t.sheepEaten} − ${t.sheepStarved} = ${t.endSheep}",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+    Text(
+        "How can the wolf-free meadow end with more sheep alive and also record more sheep that starved?",
+        fontWeight = FontWeight.SemiBold,
+    )
 }
 
 @Composable
