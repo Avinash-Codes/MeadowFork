@@ -1,7 +1,7 @@
 TEAM_ID=
 
-PRODUCT_NAME=MyApplication
-PRODUCT_BUNDLE_IDENTIFIER=com.avinash.meadowfork.MyApplication$(TEAM_ID)
+PRODUCT_NAME=MeadowFork
+PRODUCT_BUNDLE_IDENTIFIER=com.avinash.meadowfork.MeadowFork$(TEAM_ID)
 
 CURRENT_PROJECT_VERSION=1
 MARKETING_VERSION=1.0
