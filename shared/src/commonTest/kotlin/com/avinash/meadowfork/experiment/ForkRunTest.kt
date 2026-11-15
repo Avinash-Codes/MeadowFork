@@ -44,6 +44,12 @@ class ForkRunTest {
     }
 
     @Test
+    fun grassEvidenceFindsFirstDayBelowQuarter() {
+        assertEquals(49, run.firstDayGrassBelow(Branch.Comparison, 25))
+        assertEquals(null, run.firstDayGrassBelow(Branch.Baseline, 25))
+    }
+
+    @Test
     fun removalOnlyChangesTheCopyAtTheFork() {
         val baseline = run.snapshot(Branch.Baseline, 28)
         val copy = run.snapshot(Branch.Comparison, 28)
