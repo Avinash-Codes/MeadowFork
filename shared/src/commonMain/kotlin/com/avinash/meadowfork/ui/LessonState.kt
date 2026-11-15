@@ -3,13 +3,20 @@ package com.avinash.meadowfork.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.avinash.meadowfork.experiment.BatchSummary
 import com.avinash.meadowfork.experiment.Branch
 import com.avinash.meadowfork.experiment.ForkRun
+import com.avinash.meadowfork.experiment.PairedOutcome
+import com.avinash.meadowfork.experiment.REPEAT_SEEDS
 import com.avinash.meadowfork.experiment.forkMeadow
 import com.avinash.meadowfork.experiment.meadowAt
+import com.avinash.meadowfork.experiment.pairedOutcome
 import com.avinash.meadowfork.simulation.Snapshot
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 const val GRASS_LANDMARK_PERCENT = 25
@@ -40,6 +47,14 @@ class LessonState(
     var reachedEnd by mutableStateOf(false)
         private set
     var showAccounting by mutableStateOf(false)
+    var batchOutcomes by mutableStateOf<List<PairedOutcome>>(emptyList())
+        private set
+    var batchRunning by mutableStateOf(false)
+        private set
+    private var batchJob: Job? = null
+
+    val batchSummary: BatchSummary?
+        get() = if (!batchRunning && batchOutcomes.isNotEmpty()) BatchSummary.of(batchOutcomes) else null
 
     val canFork: Boolean get() = sheepPrediction != null && grassPrediction != null && run == null && !forking
 
@@ -70,6 +85,19 @@ class LessonState(
     }
 
     fun skipToResults() = scrub(endDay)
+
+    fun repeatAcrossSeeds(scope: CoroutineScope) {
+        batchJob?.cancel()
+        batchOutcomes = emptyList()
+        batchRunning = true
+        batchJob = scope.launch {
+            for (seed in REPEAT_SEEDS) {
+                val outcome = withContext(Dispatchers.Default) { pairedOutcome(seed, forkDay, endDay) }
+                batchOutcomes = batchOutcomes + outcome
+            }
+            batchRunning = false
+        }
+    }
 
     fun showGrassEvidence() {
         branch = Branch.Comparison
