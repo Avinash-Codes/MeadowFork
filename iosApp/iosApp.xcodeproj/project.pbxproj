@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		8BD99AA56318C18D9AD4F7C1 /* MyApplication.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyApplication.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8BD99AA56318C18D9AD4F7C1 /* MeadowFork.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeadowFork.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -59,7 +59,7 @@
 		0A2987EDF3543EBD97CF393E /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				8BD99AA56318C18D9AD4F7C1 /* MyApplication.app */,
+				8BD99AA56318C18D9AD4F7C1 /* MeadowFork.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -87,7 +87,7 @@
 			packageProductDependencies = (
 			);
 			productName = iosApp;
-			productReference = 8BD99AA56318C18D9AD4F7C1 /* MyApplication.app */;
+			productReference = 8BD99AA56318C18D9AD4F7C1 /* MeadowFork.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
